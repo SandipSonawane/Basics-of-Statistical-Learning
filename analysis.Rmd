@@ -1,0 +1,500 @@
+---
+title: "Credit Card Fraud Detection"
+author: "Sandip Sonawane (sandip2@illinois.edu)"
+date: "April 29, 2021"
+output:
+  html_document: 
+    theme: default
+    toc: yes
+---
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = 'center')
+```
+
+```{r, load-packages, include = FALSE}
+# load packages
+```
+
+```{r make-data, warning = FALSE, message = FALSE}
+# read data and subset
+# source("make-data.R")
+
+```
+
+```{r read-full-data, warning = FALSE, message = FALSE}
+# read full data
+# cc = data.table::fread("data/cc.csv.gz")
+```
+
+```{r read-subset-data, warning = FALSE, message = FALSE}
+# read subset of data
+# cc_sub = data.table::fread("data/cc-sub.csv")
+```
+
+***
+
+## Abstract
+
+> Credit cards are used for a significant portion of payment system all across the world. There is a risk of fraud with credit cards if credit card credentials are stolen by someone. With machine learning algorithms, we can detect if a transaction is genuine or fraudulant. The data for building the models is taken from a Kaggle Competition [`[1]`](#references). After trying variouos models, model having XGBoost algorithm performed best, giving the ROC area under the curve of 0.9973. The model also achieved the mean sensitivity of 0.9964.
+
+***
+
+## Introduction
+
+With invention of electronic payment system, credit cards have become very popular. Subsequently, the number of credit card transactions, both online and offline have also risen significantly. With this increase in credit card transactions, the risk of fraud to credit card owners is also increasing[`[4]`](#references). The goal of this analysis is to detect credit card fraud and avoid charges to credit card owners for the items they did not buy.
+
+
+***
+
+## Methods
+
+Out of 284807 transactions, 492 are the actual fraud identified. Hence, there is a significant label imbalance. In this case, confusion matrix will not be the right metric to look at. The reson for not using confusion matrix is because even if the model predicts all 492 observations which are fradulant as genuine, the models will still achieve the accuracy of 99.82%. We will use area under  Receiver Operating Characteristic (ROC) curve as the metric for model performance evaluation. Below are the definitions of this metric. [`[1]`](#references)
+
+
+True Positive Rate (TPR) means out of all the actual positive classes, how many are predicted as positive. Formula to calculate precision is given below.
+$$
+True Positive Rate (TPR) = True Positive / (True Positive + False Negative)
+$$
+False positive rate(miss rate) means out of all the actual negative classes, how many are predicted as positive The formula to calculate recall is given below.
+
+$$
+False Positive Rate (FPR) = False Positive / (False Positive + True Negative) 
+$$
+
+* True Positive : Number of correct predictions of our positive class.
+* False Positive : Number of predictions which belong to negative class but predicted as positive class.
+* False Negative : Number of predictions which belong to positive class but predicted as negative class.
+* True Negative : Number of correct predictions of our negative class.
+
+We can define the positive and negative class based on our target variable classes.
+
+To calculate Area Under the receiver operating characteristic curve(ROC), we follow below steps. [`[4]`](#references)
+
+1. Calculate TPR and FPR at different probability thresholds.
+2. Plot a graph of TPR vs FPR based on the values we get from step 1.
+3. The area under the curve of TPR vs FPR is our metric. Note that on x axis, we use FPR.
+
+### Data
+
+The data for the analysis is taken from https://www.kaggle.com/mlg-ulb/creditcardfraud. The data set consists of credit card transactions made in 2013 by European citizens.
+The predictor variables V1 to V28 are the results of PCA transformation, hence we cannot have any inference on what these actually mean. It is done primarily to keep the confidentiallity of the owners of these credit cards. Variables Time and amount are not transformed with PCA.
+The variable 'Class' is the response or target variable; 1: Fraud, 0: No Fraud. [`[1]`](#references) There is no missing data in the dataset.
+
+
+Below are the boxplots for var1 to var28 for both classes; fraud and genuine. We can see that boxplots for var 1 to 19 for class of fraud vs genuine differ from each other.
+
+![](box1to10.png){width=60%}
+![](box11to19.png){width=60%}
+
+![](box20to28.png){width=60%}
+
+
+With the dataset, we are given transaction amount for each fraudulant as well as genuine transactions. If we look at the below boxplot, we can see there that is not a big difference in terms of medians of amounts by transaction class. However, the fraud transactions seems to have larger variance.
+
+![](trasactionAmounts.png){width=60%}
+
+We are also given time variable. The time here is not an exact timestamp, instead, we are given transactions by sequence and amount of time for a transaction with respect to first transaction in seconds. Looking at the below plot, we can see almost a flat line for genuine transactions since we have significantly large number of transactions which are genuine. For fraudulant transactions, we can see, there are few gaps of time interval, but that does not look like a significant anomaly.
+
+![](transactionsWithTime.png){width=60%}
+
+
+
+
+### Modeling
+
+After checking the data, we can proceed to start building models. We split the data into training and testing dataset. The training dataset is further split into estimation and validation set. For cross-validation, 5 fold cross-validation is used. We will build models using below algorithms.
+
+1. Logistic Regression
+2. Decision Trees
+3. K-Nearest Neighbors
+5. Extreme Gradient Boosting Machines
+
+It was found that variables 'V20' to 'V28' and 'Time' were not improving the model performance. Instead, there were increasing the test error. Hence, these variables were removed when training models.
+
+Due to intense computational requirements for K-Nearest Neighbors algorithm, hyper-parameters tuning was not done for this algorithm. The model with k=10 was chosen.
+
+***
+
+## Results
+
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+rocAuc = c(0.5853, 0.9742, 0.908, 0.9973)
+MeanSensitivity = c(0.5842, 0.6180, 0.7562, 0.9964)
+FPR = c(0.5, 0.0717, 0.1667, 0.4972)
+MeanSpecificity = 1-FPR
+models = c('Logistic', 'KNN', 'Decision Tree', 'Xgboost')
+
+
+df = data.frame('Model Name' = models, 'Area Under ROC' = rocAuc, 'Mean Sensitivity' = MeanSensitivity, 'False Positive Rate' = FPR, 'Mean Specificity' =  MeanSpecificity)
+
+# row.names(df) = c('Logistic', 'KNN', 'Decision Tree', 'Xgboost')
+
+
+knitr::kable(df, caption = "Model Performance Results", col.names = gsub("[.]", " ", names(df)))
+
+
+```
+
+![](ROC_curve.png){width=60%}
+
+***
+
+## Discussion
+
+Extreme Gradient Descent Algorithm achieved highest ROC area under curve of 0.9973. The model also achieved highest mean sensitivity of 0.9964. Hence, this algorithm is used to predict data on the training set.
+
+
+***
+
+```{r, references, include = FALSE}
+# write references
+```
+
+## References
+1. Credit Card Fraud Detection. Kaggle https://www.kaggle.com/mlg-ulb/creditcardfraud
+2. Deepanshu B., (2019, July). Precision Recall Curve Simplified. Listendata https://www.listendata.com/2019/07/precision-recall-curve-simplified.html
+3. Dalphiaz D., (2020, October 28). R for Statistical Learning. https://daviddalpiaz.github.io/r4sl/
+4. Toshniwal R., (2020, January 15) Demystifying ROC Curves. https://towardsdatascience.com/demystifying-roc-curves-df809474529a
+5. Lee N., (2021, January 27) Credit card fraud will increase due to the covid pandemic, experts warn. https://www.cnbc.com/2021/01/27/credit-card-fraud-is-on-the-rise-due-to-covid-pandemic.html
+
+***
+## Appendix
+
+### Data Dictionary
+* V1 to v28: These are 28 predictor variables which are results of principle component transformations of the original predictor variables.
+* Time: Amount of time interval from first transaction in seconds.
+* Amount: The transaction amount.
+* Class: It is the response variable. It takes value of 0 for genuine transaction and 1 for fraudulant transaction.
+
+
+
+
+```{r, Analysic_code, warning = FALSE, message = FALSE, include = FALSE, eval = FALSE}
+
+####### 1.Data Preparation
+
+# import data
+library(corrplot)
+library(readr)
+library(ggplot2)
+library(skimr)
+library(caret)
+library(MLmetrics)
+library(xgboost)
+library(readr)
+library(stringr)
+library(caret)
+library(car)
+library(pROC)
+
+df = read_csv("creditcard.csv")
+
+head(df,5)
+
+# The response variable 'Class' is of type double, We need to change it to factor.
+df$Class = factor(ifelse(df$Class == 0, "genuine", "fraud"))
+
+str(df)
+# The data is in correct format. The PCA transformations have correct variable type.
+
+# Look at each variable and check if there is any missing data.
+mean(is.na(df))
+column_NAs = function(x){
+  sum(is.na(df[,x]))
+}
+NAs = sapply(1:ncol(df), column_NAs)
+NAs
+
+# As we can see from the above output, there are no missing data from this dataset.
+
+# Data looks clean enough to proceed to next step
+
+####### 2. EDA
+
+skim(df)
+
+cor(df[,1:30])
+
+corrplot(cor(df[,1:30]), order = "hclust", type = 'upper',
+         tl.col = "slategray", tl.srt = 45, tl.cex = 0.65)
+
+# ![an image caption Source: Ultimate Funny Dog Videos Compilation 2013.](corr_plot.png){width=50%}
+# We can see from the correlation plot that the principle components have zero correlation with each other.
+
+# compare all the variables with box plots.
+
+
+names(df)
+
+# Change box plot colors by groups
+
+# View for V1 ro V10
+ggplot(df, aes(x=1, y=V1, fill=Class)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(1, 10, by = 1))+
+  coord_cartesian(ylim = c(-20, 15))+
+  labs(title='Boxplot Var 1 to 10', x='Variable Number', y = 'Variable Value')+
+  geom_boxplot(outlier.shape = NA)+
+  geom_boxplot(aes(x=2, y=V2, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=3, y=V3, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=4, y=V4, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=5, y=V5, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=6, y=V6, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=7, y=V7, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=8, y=V8, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=9, y=V9, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=10, y=V10, fill=Class), outlier.shape = NA)
+  
+# View for V11 ro V19
+ggplot(df, aes(x=11, y=V11, fill=Class)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(11, 19, by = 1))+
+  coord_cartesian(ylim = c(-20, 15))+
+  labs(title='Boxplot Var 11 to 19', x='Variable Number', y = 'Variable Value')+
+  geom_boxplot(outlier.shape = NA)+
+  geom_boxplot(aes(x=12, y=V12, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=13, y=V13, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=14, y=V14, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=15, y=V15, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=16, y=V16, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=17, y=V17, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=18, y=V18, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=19, y=V19, fill=Class), outlier.shape = NA)
+
+# View for 20 ro V28
+ggplot(df, aes(x=20, y=V20, fill=Class)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  coord_cartesian(ylim = c(-20, 15))+
+  labs(title='Boxplot Var 20 to 28', x='Variable Number', y = 'Variable Value')+
+  geom_boxplot(outlier.shape = NA)+
+  geom_boxplot(aes(x=21, y=V21, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=22, y=V22, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=23, y=V23, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=24, y=V24, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=25, y=V25, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=26, y=V26, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=27, y=V27, fill=Class), outlier.shape = NA)+
+  geom_boxplot(aes(x=28, y=V28, fill=Class), outlier.shape = NA)
+
+
+summary(df$Time)
+summary(df$Amount)
+
+ggplot(df, aes(x=1, y=log(Amount), fill=Class)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  # scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  coord_cartesian(ylim = c(-5, 10))+
+  labs(title='Transaction Amount by Class', x='', y = 'log(amount')+
+  geom_boxplot(outlier.shape = NA)
+
+
+df$Time
+
+ggplot(df, aes(x=Time, y=Class, color = Class)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  labs(title='Transactions type with time', x='', y = 'Transaction Type')+
+  geom_point(size = 0.5)
+
+
+###### Model Building
+
+# 1. Logistic Regression Model
+
+
+# split the data with stratification
+
+set.seed(42)
+class_idx = createDataPartition(df$Class, p = 0.8, list = FALSE)
+class_trn = df[class_idx, ]
+class_tst = df[-class_idx, ]
+
+model_Control = trainControl(method = "cv", number = 5, summaryFunction=prSummary,
+                           classProbs=T, savePredictions = T, verboseIter = F)
+
+logistic_model = train(
+  form = Class ~ .-Time-V20-V22-V23-V24-V25-V26-V27,
+  data = class_trn,
+  trControl = model_Control,
+  method = "glm",
+  family = "binomial",
+  metric = "AUC"
+)
+
+logistic_model
+
+
+# get ROC data
+predictions_for_test_logistic = predict(logistic_model, class_tst, type = 'prob')
+predictions_prob_for_test_logistic = predictions_for_test_logistic[,1]
+
+
+ytst = ifelse(class_tst$Class=='genuine', 0, 1)
+ytst = as.matrix(ytst)
+
+roc_test_logistic <- roc(ytst, predictions_prob_for_test_logistic, algorithm = 2)
+roc_test_logistic
+mean(roc_test_logistic$sensitivities)
+mean(roc_test_logistic$specificities)
+
+
+# 2. Decision Trees Model
+
+
+model_Control = trainControl(method = "cv", number = 5, summaryFunction=prSummary,
+                             classProbs=T, savePredictions = T, verboseIter = F)
+
+decision_tree_model = train(
+  form = Class ~ .-Time-V20-V22-V23-V24-V25-V26-V27,
+  data = class_trn,
+  trControl = model_Control,
+  method = "rpart",
+  metric = "AUC",
+  tuneGrid = expand.grid(cp = c(0,0.1,0.01,0.001))
+)
+
+decision_tree_model
+
+
+# get ROC data
+predictions_for_test_decision_tree = predict(decision_tree_model, class_tst, type = 'prob')
+predictions_prob_for_test_decision_tree = predictions_for_test_decision_tree[,1]
+
+ytst = ifelse(class_tst$Class=='genuine', 0, 1)
+ytst = as.matrix(ytst)
+
+roc_test_decision_tree <- roc(ytst, predictions_prob_for_test_decision_tree, algorithm = 2)
+roc_test_decision_tree
+mean(roc_test_decision_tree$specificities)
+
+
+# knn model
+
+
+knn_model = knn3(Class ~ .-Time-V20-V22-V23-V24-V25-V26-V27, data = class_trn, k = 10)
+predictions_for_test_knn = predict(knn_model, class_tst, type = 'prob')
+predictions_prob_for_test_knn = predictions_for_test_knn[,1] 
+
+min(predictions_prob_for_test_knn[,1])
+
+
+
+ytst = ifelse(class_tst$Class=='genuine', 0, 1)
+ytst = as.matrix(ytst)
+
+roc_test_knn <- roc(ytst, predictions_prob_for_test_knn, algorithm = 2)
+roc_test_knn
+mean(roc_test_knn$sensitivities)
+mean(roc_test_knn$specificities)
+
+
+# xgboost model
+
+class_idx = createDataPartition(df$Class, p = 0.8, list = FALSE)
+class_trn = df[class_idx, ]
+class_tst = df[-class_idx, ]
+
+trn = as.matrix(class_trn[,1:22])
+y = ifelse(class_trn$Class=='genuine', 0, 1)
+
+model_Control = trainControl(method = "cv", number = 5, summaryFunction=prSummary,
+                             classProbs=T, savePredictions = T, verboseIter = F)
+
+bst <- xgboost(data = trn, label = y, trControl = model_Control,
+               max_depth = 3, eta = 1, nthread = 2, nrounds = 100,
+               objective = "binary:logistic", eval_metric = "auc")
+
+
+
+# bst <- xgboost(data = trn, label = y,
+#                max_depth = 3, eta = 1, nthread = 2, nrounds = 100,
+#                objective = "binary:logistic", eval_metric = "auc")
+
+# bst$evaluation_log
+
+
+tst = as.matrix(class_tst[,1:22])
+
+predictions_for_test_xgb = predict(bst, tst, type = 'prob')
+length(predictions_for_test_xgb)
+
+
+ytst = ifelse(class_tst$Class=='genuine', 0, 1)
+ytst = as.matrix(ytst)
+
+roc_test_xgb <- roc(ytst, predictions_for_test_xgb, algorithm = 2)
+roc_test_xgb
+head(round(roc_test_xgb$specificities, 4),80)
+mean((roc_test_xgb$sensitivities))
+mean(roc_test_xgb$specificities)
+median(roc_test_xgb$sensitivities)
+length(roc_test_xgb$sensitivities)
+
+# plot ROC curve
+
+df_roc = data.frame()
+roc_test_decision_tree
+roc_test_knn
+roc_test_xgb
+
+
+lineThichness = 1
+pltColors = c('Logistic Regression' = 'red', 'Decision Tree' = 'blue', 'knn' = 'green', 'Xgboost' = 'orange')
+
+ggplot() +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  
+  labs(title='ROC Curve', x='1 - Specificity (False Positive Rate)', y = 'Sensitivity (True Positive Rate)')+
+  
+  geom_line(aes(y = roc_test_logistic$sensitivities, x = 1- roc_test_logistic$specificities, color = 'Logistic Regression'),
+            size = lineThichness)+
+  
+  geom_line(aes(y = roc_test_decision_tree$sensitivities, x = 1-roc_test_decision_tree$specificities, color = 'Decision Tree'),
+            size = lineThichness)+
+  
+  geom_line(aes(y = roc_test_knn$sensitivities, x = 1-roc_test_knn$specificities, color = 'knn'),
+            size = lineThichness)+
+  
+  geom_line(aes(y = roc_test_xgb$sensitivities, x = 1-roc_test_xgb$specificities, color = 'Xgboost'),
+            size = lineThichness)+
+  
+  scale_colour_manual(values=pltColors)
+
+
+
+
+# plot ROC cuver for XGBoost and select best threshold
+## check what threshold represent, does it represent actual probability?
+
+roc_test_xgb$thresholds
+
+prob_threshold = roc_test_xgb$thresholds
+
+ggplot() +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  
+  labs(title='ROC Curve', x='1 - Specificity (False Positive Rate)', y = 'Sensitivity (True Positive Rate)')+
+  
+  geom_line(aes(y = roc_test_xgb$sensitivities, x = 1-roc_test_xgb$specificities,
+                color = prob_threshold), size = lineThichness)+
+  
+  scale_color_gradient(low="blue", high="red")
+  
+
+
+```
