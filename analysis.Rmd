@@ -1,0 +1,392 @@
+---
+title: "Baseball Pitch Type Prediction"
+author: "Sandip Sonawane (sandip2@illinois.edu)"
+date: "April 30, 2021"
+output:
+  html_document: 
+    theme: default
+    toc: yes
+---
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = 'center')
+```
+
+
+```{r, load-packages, include = FALSE}
+# load packages
+library(tidyverse)
+library(corrplot)
+library(readr)
+library(ggplot2)
+library(skimr)
+library(caret)
+library(MLmetrics)
+library(xgboost)
+library(readr)
+library(stringr)
+library(caret)
+library(car)
+library(pROC)
+library(gridExtra)
+```
+
+***
+
+## Abstract
+
+> Baseball is a popular sport played in the United States of America. Performing analytics on base ball games gives ideas for improving a teams performance[`[2]`](#references). It is possible to predict pitch type based on parameters associated with pitching. Input data was collected by scraping from various sources at University of Illinois, Urbana-Champaign. Extreme gradient descent algorithm was chosen for predicting pitch type. The model achieved accuracy of 85.9% with minimum F1 score of 0.7 for each class.
+
+
+***
+
+## Introduction
+
+Can machine learning algorithms correctly predict baseball pitch type based on numerical inputs? Baseball is one of the most popular games played in the United States of America. It is also one of the oldest sports which was developed over 150 years ago. Given the popularity of baseball, lots of attention is given to the sport both by players and spectators [`[1]`](#references).
+
+While most baseball fans can easily tell the pitch type by looking at how the ball was released and went to the batter, predicting pitch type automatically will significantly improve the ability to perform baseball analytics [`[2]`](#references). This report presents the analysis done on baseball data created for analysis in the course STAT 432 at Univeristy of Illinois, Urbana-Champaign and recommends an Xgboost based model to predict baseball pitch type when certain inputs are given.
+
+***
+
+## Methods
+
+We are trying to solve a classification problem. Accuracy and F1 score for each class is used as the metric for model performance evaluation. The definitions of these terms can be found at this  [wikipedia page](https://en.wikipedia.org/wiki/Precision_and_recall). F1 score is used as a metric because it punishes the model if it achieves either low precision or low recall. The model that has better precision and recall combined has better F1 score.
+
+### Data
+
+Data for the analysis was collected at University of Illinois, Urbana-Champaign by scraping from [`baseballr`](https://billpetti.github.io/baseballr/) package written by [Bill Petti](https://billpetti.github.io/). This package allows for easy querying of [Statcast](https://en.wikipedia.org/wiki/Statcast) and [PITCH f/x](https://en.wikipedia.org/wiki/PITCHf/x) data as provided by [Baseball Savant](https://baseballsavant.mlb.com/).
+
+The response variable is the Pitch Type. There are predictor variables such as effective speed, release spin, velosity of pitch, etc. Information about these can be found at below documentation.
+
+- [Documentation: Statcast CSV Documentation](https://baseballsavant.mlb.com/csv-docs)
+- [Documentation: MLB Pitch Types](http://m.mlb.com/glossary/pitch-types)
+
+The relationship among features can be visualized using a correlation plot. The plot below shows how some of the variables are highly correlated with each other. We need to remove those variables that have high correlation. This helps to reduce test error as well reduces computational resource requirement. We can observe following patterns from the plot.
+
+- pfx_z is highly negatively correlated with release_pos_y.
+- vx0 is also highly correlated with release position x.
+- vy0 is highly correlated with release position y.
+- release_position_y is highly correlated with release_extension.
+- pfx_x-ax are highly correlated as well
+
+![](correlation_plot.png){width=80%}
+
+After looking at the correlation plot, following features pfx_Z, vx0, vy0, release_extension, pfx_x are removed from the training dataset. Below correlation plot is generated after removing these features.
+
+![](correlation_plot1.png){width=80%}
+
+Effect of features Release_speed, release_spin_rate, release_pos_x, release_pos_y, release_pos_z, ax was studied. It can be observed that values of features release speed, release spin rate, acceleration of the pitch in x direction (ax) are different for different pitch types.
+
+![](boxplots.png){width=100%}
+
+
+### Modeling
+
+The dataset is split into training and testing sets The training dataset is further split into estimation and validation set. For cross-validation, 5 fold cross-validation is used. We will build models using below algorithms.
+
+1. Decision Trees
+2. Extreme Gradient Boosting Machines
+
+We can also use other algorithms such as K-nearest-neighbors but since the dataset is very large, it will be computationally heavy. Hence, it was not tried.
+
+
+***
+
+## Results
+
+Decision tree classifier achieved the accuracy of 0.6447 with value of cp = 0.04634. The classifier could not classify most of the pitch types correctly.
+
+The extreme gradient boosting model achieved the accuracy of 0.859. This accuracy is better than the test accuracy obtained by decision tree model. Below is the confusion matrix for prediction using xgboost model on test set.
+![](confMatrixXgboost.png){width=80%}
+```{r, resultsTable, echo = FALSE, message=FALSE, warning =FALSE, results='asis'}
+resultTable = read_csv("xgBoostResults.csv")
+resultTable[,2:6] = round(resultTable[2:6], 2)
+resultTable = resultTable[, -5]
+
+knitr::kable(resultTable, caption = "Xgboost Model Performance Results", col.names = gsub("[.]", " ", names(resultTable)))
+
+```
+
+We can see, the model has minimum F1 score of 0.7 for all classes.
+
+***
+
+## Discussion
+
+Extreme Gradient Descent Algorithm achieved highest accuracy of 85.9%. The model has minimum F1 score of 0.7 for all classes. Hence, this algorithm is used to predict data on the training set.
+
+***
+
+```{r, references, include = FALSE}
+# write references
+```
+
+## References
+1. Cork G., (Feb 24, 2015) Major League Baseball still leads the NBA when it comes to popularity, Business Insider, https://www.businessinsider.com/major-league-baseball-nba-popularity-2015-2
+2. Braham W., Brendan H., (Feb 21, 2019). Changing the Game: How Data Analytics Is Upending Baseball, wharton.upenn.edu https://knowledge.wharton.upenn.edu/article/analytics-in-baseball/
+3. Dalphiaz D., (2020, October 28). R for Statistical Learning. https://daviddalpiaz.github.io/r4sl/
+
+
+***
+
+## Appendix
+
+Below is the confusion matrix of the predictions on test set by decision tree classifier.
+![](ConfusionMatrixDecisionTree.png){width=80%}
+
+
+
+```{r, Analysic_code, warning = FALSE, message = FALSE, include = FALSE, eval = FALSE}
+
+# read subset of data
+pitches_2019_regular_04 = readr::read_csv("data/pitches-2019-regular-04.csv")
+pitches_2019_regular_05 = readr::read_csv("data/pitches-2019-regular-05.csv")
+pitches_2019_regular_06 = readr::read_csv("data/pitches-2019-regular-06.csv")
+pitches_2019_regular_07 = readr::read_csv("data/pitches-2019-regular-07.csv")
+pitches_2019_regular_08 = readr::read_csv("data/pitches-2019-regular-08.csv")
+pitches_2019_regular_09 = readr::read_csv("data/pitches-2019-regular-09.csv")
+pitches_2019_post = readr::read_csv("data/pitches-2019-post.csv")
+
+# merge regular season data
+pitches_2019_regular = dplyr::bind_rows(
+  pitches_2019_regular_04,
+  pitches_2019_regular_05,
+  pitches_2019_regular_06,
+  pitches_2019_regular_07,
+  pitches_2019_regular_08,
+  pitches_2019_regular_09
+)
+
+names(pitches_2019_regular)
+skimr::skim(pitches_2019_regular)
+head(pitches_2019_regular)
+
+
+# loooking into data
+# the response variable is pitch_type
+df_raw = pitches_2019_regular
+df_raw$pitch_type = factor(df_raw$pitch_type)
+summary(df_raw$pitch_type)
+# there is a significant label imbalance here. Pitch type FF has large number of records and pitch type FS has least number of recrds.
+# batter information is not going to have any effect on our response variable, hence these can be safely ignored.
+# Even though pitcher information might be correlated with response variable, we want to generalize the model, hence we will ignore this variable as well.
+# game_date does not have any relation with pitch_type, hence we will ignore this variable as well.
+# better and pitcher are just some ids associated with batter name and pitcher name so these will be ignored as well.
+# rest all numeric variables seem to be important.
+# release spin rate has 12496 missing values, lets see its distribution
+
+df_raw = df_raw[!is.na(df_raw$ax),]
+
+summary(df_raw$ax)
+skimr::skim(df_raw)
+
+df_raw = as_tibble(df_raw)
+
+df = df_raw%>%select(pitch_type, pitch_type, release_speed, release_pos_x, release_pos_y,
+            release_pos_z, pfx_x, pfx_z, plate_x, plate_z, vx0, vy0, vz0, ax, ay,              
+            az, effective_speed, release_spin_rate, release_extension)
+
+df = drop_na(df)
+
+df$pitch_type = factor(df$pitch_type)
+
+
+# Look at each variable and check if there is any missing data.
+mean(is.na(df))
+column_NAs = function(x){
+  sum(is.na(df[,x]))
+}
+NAs = sapply(1:ncol(df), column_NAs)
+NAs
+nrow(df)
+
+# release_spin_rate has 12144 values of NA out of 709600. But we will ignore since its less than 30% of missing data.
+
+df_test = df[1:700000,]
+
+correlation_matrix = cor(df[,2:length(df)], use = "na.or.complete")
+
+corrplot(correlation_matrix , order = "hclust", type = 'upper',
+         tl.col = "slategray", tl.srt = 45, tl.cex = 0.65)
+
+# pfx_z is highly negatively correlated with release_pos_y, hence we will drop pfx_z
+# vx0 is also highly correlated with release position x, hence we will dorp vx0
+# we will also drop vy0 since it is highly correlated with release position y
+# release_position_y - release_extension is also correlated, lets drop release extension
+# pfx_x-ax correlated as well, drop pfx_x
+summary(df$effective_speed)
+summary(df$release_speed)
+
+# there is a minor difference in speed distribution of effective speed and release speed, so lets keep both for now.
+
+df = df_raw%>%select(pitch_type, pitch_type, release_speed, release_pos_x, release_pos_y,
+                     release_pos_z, plate_x, plate_z, vz0, ax, ay,              
+                     az, effective_speed, release_spin_rate)
+
+df$pitch_type = factor(df$pitch_type)
+
+correlation_matrix = cor(df[,2:length(df)], use = "na.or.complete")
+
+corrplot(correlation_matrix , order = "hclust", type = 'upper',
+         tl.col = "slategray", tl.srt = 45, tl.cex = 0.65)
+
+
+# lets see if release speed is different for different pitches
+
+p1 = ggplot(df, aes(x=1, y=release_speed, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='Release speed by pitch type', x='', y = 'Release Speed')+
+  geom_boxplot(outlier.shape = NA)
+
+names(df)
+
+p2 = ggplot(df, aes(x=1, y=release_spin_rate, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='release_spin_rate by pitch type', x='', y = 'release_spin_rate')+
+  geom_boxplot(outlier.shape = NA)
+
+
+p3 = ggplot(df, aes(x=1, y=release_pos_x, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='release_pos_x by pitch type', x='', y = 'release_pos_x')+
+  geom_boxplot(outlier.shape = NA)
+
+
+p4 = ggplot(df, aes(x=1, y=release_pos_y, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='release_pos_y by pitch type', x='', y = 'release_pos_y')+
+  geom_boxplot(outlier.shape = NA)
+
+
+p5 = ggplot(df, aes(x=1, y=release_pos_z, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='release_pos_z by pitch type', x='', y = 'release_pos_z')+
+  geom_boxplot(outlier.shape = NA)
+
+
+p6 = ggplot(df, aes(x=1, y=ax, fill=pitch_type)) +
+  theme_update(plot.title = element_text(hjust = 0.5))+
+  theme_set(theme_bw())+
+  theme(text = element_text(size=16))+
+  scale_x_continuous(breaks = seq(20, 28, by = 1))+
+  # coord_cartesian(ylim = c(-20, 15))+
+  
+  labs(title='ax by pitch type', x='', y = 'ax')+
+  geom_boxplot(outlier.shape = NA)
+
+gridExtra::grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
+
+###### Model Building
+
+# 1. Decision tree Model
+
+
+# split the data with stratification
+set.seed(42)
+class_idx = createDataPartition(df$pitch_type, p = 0.8, list = FALSE)
+class_trn = df[class_idx, ]
+class_tst = df[-class_idx, ]
+
+model_Control = trainControl(method = "cv", number = 5, classProbs=T,
+                             savePredictions = T, verboseIter = F)
+
+decision_tree_model1 = train(
+  form = pitch_type ~ .,
+  data = class_trn,
+  trControl = model_Control,
+  method = "rpart",
+  na.action = na.pass
+)
+
+decision_tree_model = decision_tree_model1
+
+# predictedOnTraining = decision_tree_model$pred$pred
+
+predictedOnTesting = predict(decision_tree_model, class_tst)
+
+# plot confusion matrix
+confMatrix = confusionMatrix(class_tst$pitch_type, predictedOnTesting)
+confMatrix$table
+row_names = row.names(confMatrix$table)
+column_names = rev(row_names)
+confTable = confMatrix$byClass[,c(1,2,5,6,7)]
+confTable
+
+ggplot(as.data.frame(confMatrix$table), aes(Prediction,sort(Reference,decreasing = T), fill= Freq)) +
+  geom_tile() +
+  geom_text(aes(label=Freq)) +
+  theme(text = element_text(size=16))+
+  scale_fill_gradient(low="#ffffff", high="#009273") +
+  labs(x = "Actual",y = "Predicted") +
+  scale_x_discrete(labels=row_names) +
+  scale_y_discrete(labels=column_names)
+
+
+
+# 2. xgBoost Model
+
+trn = as.matrix(class_trn[,2:length(df)])
+tst = as.matrix(class_tst[,2:length(df)])
+y = as.numeric(class_trn$pitch_type)-1
+ytst = as.numeric(class_tst$pitch_type)-1
+
+model_Control = trainControl(method = "cv", number = 5, summaryFunction=prSummary,
+                             classProbs=T, savePredictions = T, verboseIter = F)
+
+bst <- xgboost(data = trn, label = y, trControl = model_Control,
+               max_depth = 3, eta = 1, nthread = 2, nrounds = 100,
+               objective = "multi:softmax",  num_class=9, metric = 'accuracy')
+
+
+bst$evaluation_log
+predictedOnTesting = predict(bst, tst)
+ytst
+
+# plot confusion matrix
+confMatrix = confusionMatrix(factor(ytst), factor(predictedOnTesting))
+confMatrix$table
+
+confTable = confMatrix$byClass[,c(1,2,5,6,7)]
+row.names(confTable) = row_names
+confTable
+
+write.csv(confTable,'xgBoostResults.csv')
+
+# row_names = row.names(confMatrix$table)
+# column_names = rev(row_names)
+
+ggplot(as.data.frame(confMatrix$table), aes(Prediction,sort(Reference,decreasing = T), fill= Freq)) +
+  geom_tile() +
+  geom_text(aes(label=Freq)) +
+  theme(text = element_text(size=16))+
+  scale_fill_gradient(low="#ffffff", high="#009273") +
+  labs(x = "Actual",y = "Predicted") +
+  scale_x_discrete(labels=row_names) +
+  scale_y_discrete(labels=column_names)
+
+```
