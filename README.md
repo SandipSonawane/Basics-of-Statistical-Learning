@@ -1,4 +1,4 @@
-# Basics-of-Statistical-Learning-STAT-432
+# Basics-of-Statistical-Learning
 This repository contains the files created during coursework in STAT 432 at the University of Illinois at Urbana-Champaign.
 
 ## Analysis Reports on RPubs
